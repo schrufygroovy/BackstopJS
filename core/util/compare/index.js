@@ -83,9 +83,14 @@ function compareImages (referencePath, testPath, pair, resembleOutputSettings, T
     });
 
     worker.on('exit', function (code, signal) {
+      worker.kill();
       if (code > 0) {
-        logger.error('EXECUTION ERROR');
-        reject('There was an error in child process');
+        logger.error('ERROR exception while trying to compare: ' + testPath);
+        data = {
+          ...pair,
+          status: 'fail'
+        };
+        resolve(data);
       }
     });
   });
