@@ -81,6 +81,13 @@ function compareImages (referencePath, testPath, pair, resembleOutputSettings, T
 
       resolve(data);
     });
+
+    worker.on('exit', function (code, signal) {
+      if (code > 0) {
+        logger.error('EXECUTION ERROR');
+        reject('There was an error in child process');
+      }
+    });
   });
 }
 
