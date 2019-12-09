@@ -63,10 +63,12 @@ async function processScenarioView (scenario, variantOrScenarioLabelSafe, scenar
   );
 
   const browser = await puppeteer.launch(puppeteerArgs);
+  console.log(chalk.green(`Opening Browser: ${scenario.label}`));
   const page = await browser.newPage();
 
   page.setViewport({ width: VP_W, height: VP_H });
   page.setDefaultNavigationTimeout(engineTools.getEngineOption(config, 'waitTimeout', TEST_TIMEOUT));
+  console.log(chalk.green(`Opening Browser DONE: ${scenario.label}`));
 
   if (isReference) {
     console.log(chalk.blue('CREATING NEW REFERENCE FILE'));
@@ -245,9 +247,14 @@ async function processScenarioView (scenario, variantOrScenarioLabelSafe, scenar
       );
     } catch (e) {
       error = e;
+      console.log(chalk.red(`x Close Browser in catch: ${scenario.label}`));
+      await browser.close();
+      console.log(chalk.red(`x Close Browser in catch DONE: ${scenario.label}`));
     }
   } else {
+    console.log(chalk.red(`x Close Browser in else: ${scenario.label}`));
     await browser.close();
+    console.log(chalk.red(`x Close Browser in else DONE: ${scenario.label}`));
   }
 
   if (error) {
@@ -333,11 +340,14 @@ async function delegateSelectors (
     };
     next();
   }).then(async () => {
-    console.log(chalk.green('x Close Browser'));
+    console.log(chalk.green(`x Close Browser: ${scenario.label}`));
     await browser.close();
+    console.log(chalk.green(`x Close Browser DONE: ${scenario.label}`));
   }).catch(async (err) => {
     console.log(chalk.red(err));
+    console.log(chalk.red(`x Close Browser: ${scenario.label}`));
     await browser.close();
+    console.log(chalk.red(`x Close Browser DONE: ${scenario.label}`));
   }).then(_ => compareConfig);
 }
 
