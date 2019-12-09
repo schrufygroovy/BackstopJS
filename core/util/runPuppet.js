@@ -62,8 +62,8 @@ async function processScenarioView (scenario, variantOrScenarioLabelSafe, scenar
     config.engineOptions
   );
 
-  const browser = await puppeteer.launch(puppeteerArgs);
   console.log(chalk.green(`Opening Browser: ${scenario.label}`));
+  const browser = await puppeteer.launch(puppeteerArgs);
   const page = await browser.newPage();
 
   page.setViewport({ width: VP_W, height: VP_H });
