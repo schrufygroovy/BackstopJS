@@ -308,14 +308,14 @@ async function delegateSelectors (
   });
 
   if (captureDocument) {
-    captureJobs.push(function () { return captureScreenshot(page, browser, captureDocument, selectorMap, config, []); });
+    captureJobs.push(function () { return captureScreenshot(page, browser, captureDocument, selectorMap, config, [], scenario); });
   }
   // TODO: push captureViewport into captureList (instead of calling captureScreenshot()) to improve perf.
   if (captureViewport) {
-    captureJobs.push(function () { return captureScreenshot(page, browser, captureViewport, selectorMap, config, []); });
+    captureJobs.push(function () { return captureScreenshot(page, browser, captureViewport, selectorMap, config, [], scenario); });
   }
   if (captureList.length) {
-    captureJobs.push(function () { return captureScreenshot(page, browser, null, selectorMap, config, captureList); });
+    captureJobs.push(function () { return captureScreenshot(page, browser, null, selectorMap, config, captureList, scenario); });
   }
 
   return new Promise(function (resolve, reject) {
@@ -351,7 +351,7 @@ async function delegateSelectors (
   }).then(_ => compareConfig);
 }
 
-async function captureScreenshot (page, browser, selector, selectorMap, config, selectors) {
+async function captureScreenshot (page, browser, selector, selectorMap, config, selectors, scenario) {
   let filePath;
   let fullPage = (selector === NOCLIP_SELECTOR || selector === DOCUMENT_SELECTOR);
   if (selector) {
@@ -431,8 +431,16 @@ async function captureScreenshot (page, browser, selector, selectorMap, config, 
       if (el) {
         const box = await el.boundingBox();
         if (box) {
-          var type = config.puppeteerOffscreenCaptureFix ? page : el;
-          var params = config.puppeteerOffscreenCaptureFix ? { path: path, clip: box } : { path: path };
+          var type = scenario.usePageScreenshotWithClip ? page : el;
+          var params = { path: path };
+
+          if(scenario.usePageScreenshotWithClip){
+            const { layoutViewport: { pageX, pageY } } = await page._client.send('Page.getLayoutMetrics');
+            const clip = Object.assign({}, box);
+            clip.x += pageX;
+            clip.y += pageY;
+            params.clip = clip;
+          }
           await type.screenshot(params);
         } else {
           console.log(chalk.yellow(`Element not visible for capturing: ${s}`));
