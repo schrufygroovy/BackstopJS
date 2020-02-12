@@ -429,17 +429,27 @@ async function captureScreenshot (page, browser, selector, selectorMap, config, 
     const selectorShot = async (s, path) => {
       const el = await page.$(s);
       if (el) {
-        const box = await el.boundingBox();
-        if (box) {
+        const boundingBox = await el.boundingBox();
+        if (boundingBox) {
           var type = scenario.usePageScreenshotWithClip ? page : el;
           var params = { path: path };
 
           if(scenario.usePageScreenshotWithClip){
             const { layoutViewport: { pageX, pageY } } = await page._client.send('Page.getLayoutMetrics');
-            const clip = Object.assign({}, box);
+            const clip = Object.assign({}, boundingBox);
             clip.x += pageX;
             clip.y += pageY;
             params.clip = clip;
+            // since v2.0.0 viewport is clipping again https://github.com/puppeteer/puppeteer/issues/5080
+            // so we have to potentially increase the viewport to ensure the element we wanna screenshot is part of the viewport
+            const viewport = page.viewport();
+            const bottomOfBoundingBoxInCurrentViewPort = boundingBox.y + boundingBox.height;
+            if (viewport && (bottomOfBoundingBoxInCurrentViewPort > viewport.height)) {
+              const newViewport = {
+                height: Math.max(viewport.height, Math.ceil(bottomOfBoundingBoxInCurrentViewPort)),
+              };
+              await page.setViewport(Object.assign({}, viewport, newViewport));
+            }
           }
           await type.screenshot(params);
         } else {
