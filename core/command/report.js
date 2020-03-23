@@ -6,6 +6,7 @@ var allSettled = require('../util/allSettled');
 var fs = require('../util/fs');
 var logger = require('../util/logger')('report');
 var compare = require('../util/compare/');
+let ReportPortalClient = require('reportportal-client');
 
 function writeReport (config, reporter) {
   var promises = [];
@@ -16,6 +17,10 @@ function writeReport (config, reporter) {
 
   if (config.report && config.report.indexOf('json') > -1) {
     promises.push(writeJsonReport(config, reporter));
+  }
+
+  if (config.report && config.report.indexOf('reportportal') > -1) {
+    promises.push(writeReportPortalReport(config, reporter));
   }
 
   promises.push(writeBrowserReport(config, reporter));
@@ -165,6 +170,40 @@ function writeJsonReport (config, reporter) {
       logger.error('Failed writing Json report to: ' + toAbsolute(config.compareJsonFileName));
       throw err;
     });
+  });
+}
+
+function validateReportPortalConfig (reportPortalConfig) {
+  if (!reportPortalConfig) {
+    throw new Error('The "reportPortalConfig" is missing.');
+  }
+  if (!reportPortalConfig.token) {
+    throw new Error('ReportPortal - token is missing.');
+  }
+  if (!reportPortalConfig.endpoint) {
+    throw new Error('ReportPortal - endpoint is missing.');
+  }
+  if (!reportPortalConfig.launch) {
+    throw new Error('ReportPortal - launch is missing.');
+  }
+  if (!reportPortalConfig.project) {
+    throw new Error('ReportPortal - project is missing.');
+  }
+  return reportPortalConfig;
+}
+
+function writeReportPortalReport (config, reporter) {
+  logger.log('Submitting ReportPortal report');
+  const reportPortalConfig = validateReportPortalConfig(config.reportPortalConfig);
+
+  const reportPortalClient = new ReportPortalClient(reportPortalConfig);
+
+  return reportPortalClient.checkConnect().then((response) => {
+    console.log('You have successfully connected to the server.');
+    console.log(`You are using an account: ${response.fullName}`);
+  }, (error) => {
+    console.log('Error connection to server');
+    console.dir(error);
   });
 }
 
