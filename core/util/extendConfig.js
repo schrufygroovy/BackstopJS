@@ -10,6 +10,7 @@ function extendConfig (config, userConfig) {
   ci(config, userConfig);
   htmlReport(config, userConfig);
   jsonReport(config, userConfig);
+  reportPortalReport(config, userConfig);
   comparePaths(config);
   captureConfigPaths(config);
   engine(config, userConfig);
@@ -74,6 +75,12 @@ function jsonReport (config, userConfig) {
   }
 
   config.compareJsonFileName = path.join(config.json_report, 'jsonReport.json');
+}
+
+function reportPortalReport (config, userConfig) {
+  if (userConfig.reportPortalOptions) {
+    config.reportPortalOptions = userConfig.reportPortalOptions;
+  }
 }
 
 function comparePaths (config) {
