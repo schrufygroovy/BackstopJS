@@ -85,11 +85,13 @@ function compareImages (referencePath, testPath, pair, resembleOutputSettings, T
     worker.on('exit', function (code, signal) {
       worker.kill();
       if (code > 0) {
-        logger.error('ERROR exception while trying to compare: ' + testPath);
+        logger.error(`ERROR exception while trying to compare: ${testPath}: Code ${code}. ` +
+          'Checkout https://nodejs.org/api/process.html#process_exit_codes to find more about exit codes.');
         data = {
           ...pair,
           status: 'fail'
         };
+        Test.status = data.status;
         resolve(data);
       }
     });

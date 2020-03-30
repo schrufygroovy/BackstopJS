@@ -7,6 +7,7 @@ var fsPromisified = {
   createWriteStream: fs.createWriteStream,
   existsSync: fs.existsSync,
   readFile: promisify(fs.readFile),
+  readFileSync: fs.readFileSync,
   writeFile: promisify(fs.writeFile),
   ensureDir: promisify(fsExtra.ensureDir),
   unlink: promisify(fs.unlink),
