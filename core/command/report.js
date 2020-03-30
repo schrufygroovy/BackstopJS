@@ -19,7 +19,7 @@ function writeReport (config, reporter) {
     promises.push(writeJsonReport(config, reporter));
   }
 
-  if (config.report && config.report.indexOf('reportportal') > -1) {
+  if (config.report && config.report.indexOf('ReportPortal') > -1) {
     promises.push(writeReportPortalReport(config, reporter));
   }
 
@@ -192,12 +192,20 @@ function validateReportPortalConfig (reportPortalConfig) {
   return reportPortalConfig;
 }
 
+function convertToReportPortalStatus(backstopjsstatus) {
+  if(backstopjsstatus == 'fail'){
+    return 'failed';
+  }
+  throw new Error(`Unknown status: '${backstopjsstatus}'.`);
+}
+
 function writeReportPortalReport (config, reporter) {
   logger.log('Submitting ReportPortal report');
-  const reportPortalConfig = validateReportPortalConfig(config.reportPortalConfig);
+  const reportPortalConfig = validateReportPortalConfig(config.reportPortalOptions);
 
   const reportPortalClient = new ReportPortalClient(reportPortalConfig);
 
+  /*
   return reportPortalClient.checkConnect().then((response) => {
     console.log('You have successfully connected to the server.');
     console.log(`You are using an account: ${response.fullName}`);
@@ -205,6 +213,56 @@ function writeReportPortalReport (config, reporter) {
     console.log('Error connection to server');
     console.dir(error);
   });
+  */
+  const launchObject = reportPortalClient.startLaunch({
+    // name: "Client test",
+    // startTime: rpClient.helpers.now(),
+    // description: "description of the launch",
+    /*
+    attributes: [
+        {
+            "key": "yourKey",
+            "value": "yourValue"
+        },
+        {
+            "value": "yourValue"
+        }
+    ],
+    */
+    // this param used only when you need client to send data into the existing launch
+    // id: 'id'
+  });
+
+  const suiteName = reporter.testSuite;
+  const suiteObject = reportPortalClient.startTestItem({
+    name: suiteName,
+    type: "SUITE"
+  }, launchObject.tempId);
+
+  // TODO: foreach
+  const testPair = reporter.tests[0].pair;
+  const testName = `${testPair.label}-${testPair.viewportLabel}`;
+  const testDescription = `${testPair.url}`;
+  const status = convertToReportPortalStatus(reporter.tests[0].status);
+  const testObject = reportPortalClient.startTestItem({
+    name: testName,
+    description: testDescription,
+    type: "TEST"
+  }, launchObject.tempId, suiteObject.tempId);
+  if(testPair.error){
+    reportPortalClient.sendLog(testObject.tempId, {
+      level: "ERROR",
+      message: testPair.error
+    });
+  }
+  const finishTestObject = reportPortalClient.finishTestItem(testObject.tempId, {
+    status: status
+  });
+  const finishSuiteObject = reportPortalClient.finishTestItem(suiteObject.tempId);
+
+  const finishObject = reportPortalClient.finishLaunch(launchObject.tempId, { });
+
+  return reportPortalClient.getPromiseFinishAllItems(launchObject.tempId);
 }
 
 module.exports = {
