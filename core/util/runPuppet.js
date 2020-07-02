@@ -66,7 +66,7 @@ async function processScenarioView (scenario, variantOrScenarioLabelSafe, scenar
   const browser = await puppeteer.launch(puppeteerArgs);
   const page = await browser.newPage();
 
-  page.setViewport({ width: VP_W, height: VP_H });
+  await page.setViewport({ width: VP_W, height: VP_H });
   page.setDefaultNavigationTimeout(engineTools.getEngineOption(config, 'waitTimeout', TEST_TIMEOUT));
   console.log(chalk.green(`Opening Browser DONE: ${scenario.label}`));
 
@@ -308,14 +308,14 @@ async function delegateSelectors (
   });
 
   if (captureDocument) {
-    captureJobs.push(function () { return captureScreenshot(page, browser, captureDocument, selectorMap, config, [], scenario); });
+    captureJobs.push(function () { return captureScreenshot(page, browser, captureDocument, selectorMap, config, [], viewport, scenario); });
   }
   // TODO: push captureViewport into captureList (instead of calling captureScreenshot()) to improve perf.
   if (captureViewport) {
-    captureJobs.push(function () { return captureScreenshot(page, browser, captureViewport, selectorMap, config, [], scenario); });
+    captureJobs.push(function () { return captureScreenshot(page, browser, captureViewport, selectorMap, config, [], viewport, scenario); });
   }
   if (captureList.length) {
-    captureJobs.push(function () { return captureScreenshot(page, browser, null, selectorMap, config, captureList, scenario); });
+    captureJobs.push(function () { return captureScreenshot(page, browser, null, selectorMap, config, captureList, viewport, scenario); });
   }
 
   return new Promise(function (resolve, reject) {
@@ -351,7 +351,7 @@ async function delegateSelectors (
   }).then(_ => compareConfig);
 }
 
-async function captureScreenshot (page, browser, selector, selectorMap, config, selectors, scenario) {
+async function captureScreenshot (page, browser, selector, selectorMap, config, selectors, viewport, scenario) {
   let filePath;
   let fullPage = (selector === NOCLIP_SELECTOR || selector === DOCUMENT_SELECTOR);
   if (selector) {
@@ -429,24 +429,36 @@ async function captureScreenshot (page, browser, selector, selectorMap, config, 
     const selectorShot = async (s, path) => {
       const el = await page.$(s);
       if (el) {
-        const boundingBox = await el.boundingBox();
-        if (boundingBox) {
-          var type = scenario.usePageScreenshotWithClip ? page : el;
-          var params = { path: path };
+        const box = await el.boundingBox();
+        if (box) {
+          // Resize the viewport to screenshot elements outside of the viewport
+          if (config.useBoundingBoxViewportForSelectors !== false) {
+            const bodyHandle = await page.$('body');
+            const boundingBox = await bodyHandle.boundingBox();
 
-          if(scenario.usePageScreenshotWithClip){
+            await page.setViewport({
+              width: Math.max(viewport.width, Math.ceil(boundingBox.width)),
+              height: Math.max(viewport.height, Math.ceil(boundingBox.height))
+            });
+          }
+
+          var type = config.puppeteerOffscreenCaptureFix ? page : el;
+          var params = config.puppeteerOffscreenCaptureFix ? { path: path, clip: box } : { path: path };
+
+          if (scenario.usePageScreenshotWithClip) {
+            type = page;
             const { layoutViewport: { pageX, pageY } } = await page._client.send('Page.getLayoutMetrics');
-            const clip = Object.assign({}, boundingBox);
+            const clip = Object.assign({}, box);
             clip.x += pageX;
             clip.y += pageY;
             params.clip = clip;
             // since v2.0.0 viewport is clipping again https://github.com/puppeteer/puppeteer/issues/5080
             // so we have to potentially increase the viewport to ensure the element we wanna screenshot is part of the viewport
             const viewport = page.viewport();
-            const bottomOfBoundingBoxInCurrentViewPort = boundingBox.y + boundingBox.height;
+            const bottomOfBoundingBoxInCurrentViewPort = box.y + box.height;
             if (viewport && (bottomOfBoundingBoxInCurrentViewPort > viewport.height)) {
               const newViewport = {
-                height: Math.max(viewport.height, Math.ceil(bottomOfBoundingBoxInCurrentViewPort)),
+                height: Math.max(viewport.height, Math.ceil(bottomOfBoundingBoxInCurrentViewPort))
               };
               await page.setViewport(Object.assign({}, viewport, newViewport));
             }
