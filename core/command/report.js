@@ -192,11 +192,11 @@ function validateReportPortalConfig (reportPortalConfig) {
   return reportPortalConfig;
 }
 
-function convertToReportPortalStatus(backstopjsstatus) {
-  if(backstopjsstatus == 'fail'){
+function convertToReportPortalStatus (backstopjsstatus) {
+  if (backstopjsstatus === 'fail') {
     return 'FAILED';
   }
-  if(backstopjsstatus == 'running'){
+  if (backstopjsstatus === 'running') {
     return 'INTERRUPTED';
   }
   throw new Error(`Unknown status: '${backstopjsstatus}'.`);
@@ -208,7 +208,7 @@ function writeReportPortalReport (config, reporter) {
   }
 
   logger.log('Submitting ReportPortal report');
-  if(!reporter.tests || reporter.tests.length == 0){
+  if (!reporter.tests || reporter.tests.length == 0) {
     logger.log('No tests to submit.');
     return Promise.resolve();
   }
@@ -248,7 +248,7 @@ function writeReportPortalReport (config, reporter) {
   const suiteName = reporter.testSuite;
   const suiteObject = reportPortalClient.startTestItem({
     name: suiteName,
-    type: "SUITE"
+    type: 'SUITE'
   }, launchObject.tempId);
 
   reporter.tests.forEach(test => {
@@ -259,25 +259,25 @@ function writeReportPortalReport (config, reporter) {
     const testObject = reportPortalClient.startTestItem({
       name: testName,
       description: testDescription,
-      type: "TEST",
-      attributes: [{ key: "viewportLabel", value: testPair.viewportLabel }]
+      type: 'TEST',
+      attributes: [{ key: 'viewportLabel', value: testPair.viewportLabel }]
     }, launchObject.tempId, suiteObject.tempId);
-    if(testPair.error){
+    if (testPair.error) {
       reportPortalClient.sendLog(testObject.tempId, {
-        level: "ERROR",
+        level: 'ERROR',
         message: testPair.error
       });
     }
-    if(testPair.diffImage){
+    if (testPair.diffImage) {
       // TODO: const diffImageAbsolutePath = toAbsolute(testPair.diffImage);
       // TODO: logger.log(`Uploading diff image:${testPair.diffImage} gaxi ${diffImageAbsolutePath}.`);
       // TODO: const content = fs.readFileSync(diffImageAbsolutePath);
       var sendLogObject = reportPortalClient.sendLog(testObject.tempId, {
-        level: "ERROR",
-        message: "Difference found"
+        level: 'ERROR',
+        message: 'Difference found'
       });
     }
-  
+
     const finishTestObject = reportPortalClient.finishTestItem(testObject.tempId, {
       status: status
     });
