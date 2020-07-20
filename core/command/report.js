@@ -6,7 +6,7 @@ var allSettled = require('../util/allSettled');
 var fs = require('../util/fs');
 var logger = require('../util/logger')('report');
 var compare = require('../util/compare/');
-let ReportPortalClient = require('reportportal-client');
+let ReportPortalClient = require('@reportportal/client-javascript');
 
 function writeReport (config, reporter) {
   var promises = [];
@@ -269,13 +269,22 @@ function writeReportPortalReport (config, reporter) {
       });
     }
     if (testPair.diffImage) {
-      // TODO: const diffImageAbsolutePath = toAbsolute(testPair.diffImage);
-      // TODO: logger.log(`Uploading diff image:${testPair.diffImage} gaxi ${diffImageAbsolutePath}.`);
-      // TODO: const content = fs.readFileSync(diffImageAbsolutePath);
-      var sendLogObject = reportPortalClient.sendLog(testObject.tempId, {
-        level: 'ERROR',
-        message: 'Difference found'
-      });
+      const diffImageAbsolutePath = toAbsolute(testPair.diffImage);
+      logger.log(`Uploading diff image:${testPair.diffImage} gaxi ${diffImageAbsolutePath}.`);
+      const fsObject = fs.readFileSync(diffImageAbsolutePath);
+      const contentBase64 = Buffer.from(fsObject).toString('base64');
+      const fileObject = {
+        name: 'testPair.diffImage.png',
+        type: 'image/png',
+        content: contentBase64
+      };
+      var sendLogObject = reportPortalClient.sendLog(
+        testObject.tempId,
+        {
+          level: 'ERROR',
+          message: 'Difference found',
+        },
+        fileObject);
     }
 
     const finishTestObject = reportPortalClient.finishTestItem(testObject.tempId, {
