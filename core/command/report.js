@@ -199,6 +199,9 @@ function convertToReportPortalStatus (backstopjsstatus) {
   if (backstopjsstatus === 'running') {
     return 'INTERRUPTED';
   }
+  if (backstopjsstatus === 'pass') {
+    return 'PASSED';
+  }
   throw new Error(`Unknown status: '${backstopjsstatus}'.`);
 }
 
@@ -250,18 +253,46 @@ function writeReportPortalReport (config, reporter) {
     name: suiteName,
     type: 'SUITE'
   }, launchObject.tempId);
+  const testClassObject = reportPortalClient.startTestItem({
+    name: 'TestClass',
+    description: 'In C# this objects are the test classes. Still need to figure out what\'s the purpose here.',
+    type: 'TEST'
+  }, launchObject.tempId, suiteObject.tempId);
 
   reporter.tests.forEach(test => {
     const testPair = test.pair;
     const testName = `${testPair.label}-${testPair.viewportLabel}`;
-    const testDescription = `${testPair.url}`;
+    const testDescription = `Comparing at URL: ${testPair.url}`;
     const status = convertToReportPortalStatus(test.status);
+
     const testObject = reportPortalClient.startTestItem({
       name: testName,
       description: testDescription,
-      type: 'TEST',
+      type: 'STEP',
       attributes: [{ key: 'viewportLabel', value: testPair.viewportLabel }]
-    }, launchObject.tempId, suiteObject.tempId);
+    }, launchObject.tempId, testClassObject.tempId);
+
+    reportPortalClient.sendLog(testObject.tempId, {
+      level: 'INFO',
+      message: `Comparing image with a threshold of '${testPair.misMatchThreshold}%'.`
+    });
+
+    if (testPair.diff) {
+      const diff = testPair.diff;
+      if (!diff.isSameDimensions && diff.dimensionDifference) {
+        const dimensionDifference = diff.dimensionDifference;
+        reportPortalClient.sendLog(testObject.tempId, {
+          level: 'WARN',
+          message: `Compared image has different dimension by: height: '${dimensionDifference.height}', width: '${dimensionDifference.width}'.`
+        });
+      }
+      if (diff.misMatchPercentage) {
+        reportPortalClient.sendLog(testObject.tempId, {
+          level: 'INFO',
+          message: `Compared image has a mismatch of '${diff.misMatchPercentage}%'.`
+        });
+      }
+    }
     if (testPair.error) {
       reportPortalClient.sendLog(testObject.tempId, {
         level: 'ERROR',
@@ -283,7 +314,7 @@ function writeReportPortalReport (config, reporter) {
         testObject.tempId,
         {
           level: 'ERROR',
-          message: 'Difference found',
+          message: 'Difference found'
         },
         fileObject);
     }
@@ -292,6 +323,8 @@ function writeReportPortalReport (config, reporter) {
       status: status
     });
   });
+
+  const finishTestClassObject = reportPortalClient.finishTestItem(testClassObject.tempId, { });
 
   const finishSuiteObject = reportPortalClient.finishTestItem(suiteObject.tempId);
 
