@@ -273,10 +273,11 @@ function writeReportPortalReport (config, reporter) {
       logger.log(`Uploading diff image:${testPair.diffImage} gaxi ${diffImageAbsolutePath}.`);
       const fsObject = fs.readFileSync(diffImageAbsolutePath);
       const contentBase64 = Buffer.from(fsObject).toString('base64');
+      const fileExtension = path.extname(diffImageAbsolutePath).replace('.', '');
       const fileObject = {
-        name: 'testPair.diffImage.png',
-        type: 'image/png',
-        content: contentBase64
+        name: path.basename(diffImageAbsolutePath),
+        type: `image/${fileExtension}`,
+        content: contentBase64,
       };
       var sendLogObject = reportPortalClient.sendLog(
         testObject.tempId,
