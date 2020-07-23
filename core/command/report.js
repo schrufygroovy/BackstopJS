@@ -295,7 +295,9 @@ function writeReportPortalReport (config, reporter) {
         const dimensionDifference = diff.dimensionDifference;
         reportPortalClient.sendLog(testObject.tempId, {
           level: 'WARN',
-          message: `Compared image has different dimension by: height: '${dimensionDifference.height}', width: '${dimensionDifference.width}'.`
+          message: `Compared image has different dimension by: height: '${dimensionDifference.height}', width: '${dimensionDifference.width}'.` +
+            '\r\nSadly we cannot say which image was bigger/smaller because in https://github.com/rsmbl/Resemble.js/blob/master/resemble.js#L865 the images are ' +
+            'loaded asynchron and then pushed to `images` array. So we cannot say which image is `images[0]` and which is `images[1]`.'
         });
       }
       if (diff.misMatchPercentage) {
