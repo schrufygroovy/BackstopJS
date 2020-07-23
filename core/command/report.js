@@ -192,6 +192,16 @@ function validateReportPortalConfig (reportPortalConfig) {
   return reportPortalConfig;
 }
 
+function convertValueToLogableString (rawValue) {
+  if (rawValue === undefined) {
+    return '{undefined}'
+  }
+  if (rawValue === null) {
+    return '{null}'
+  }
+  return rawValue
+}
+
 function convertToReportPortalStatus (backstopjsstatus) {
   if (backstopjsstatus === 'fail') {
     return 'FAILED';
@@ -272,9 +282,11 @@ function writeReportPortalReport (config, reporter) {
       attributes: [{ key: 'viewportLabel', value: testPair.viewportLabel }]
     }, launchObject.tempId, testClassObject.tempId);
 
+    const selector = convertValueToLogableString(testPair.selector);
+    const url = convertValueToLogableString(testPair.url);
     reportPortalClient.sendLog(testObject.tempId, {
       level: 'INFO',
-      message: `Comparing image with a threshold of '${testPair.misMatchThreshold}%'.`
+      message: `Comparing image for selector '${selector}' on url '${url}' with a threshold of '${testPair.misMatchThreshold}%'.`
     });
 
     if (testPair.diff) {
@@ -293,6 +305,14 @@ function writeReportPortalReport (config, reporter) {
         });
       }
     }
+
+    if (testPair.engineErrorMsg) {
+      reportPortalClient.sendLog(testObject.tempId, {
+        level: 'ERROR',
+        message: `engineErrorMsg: '${testPair.engineErrorMsg}'`
+      });
+    }
+
     if (testPair.error) {
       reportPortalClient.sendLog(testObject.tempId, {
         level: 'ERROR',
