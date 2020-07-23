@@ -286,7 +286,7 @@ function writeReportPortalReport (config, reporter) {
     const url = convertValueToLogableString(testPair.url);
     reportPortalClient.sendLog(testObject.tempId, {
       level: 'INFO',
-      message: `Comparing image for selector '${selector}' on url '${url}' with a threshold of '${testPair.misMatchThreshold}%'.`
+      message: `Comparing image for selector '${selector}' on url ${url} with a threshold of '${testPair.misMatchThreshold}%'.`
     });
 
     if (testPair.diff) {
