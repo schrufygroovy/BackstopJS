@@ -177,29 +177,48 @@ function validateReportPortalConfig (reportPortalConfig) {
   if (!reportPortalConfig) {
     throw new Error('The "reportPortalConfig" is missing.');
   }
-  if (!reportPortalConfig.token) {
-    throw new Error('ReportPortal - token is missing.');
+  if (!reportPortalConfig.server) {
+    throw new Error('ReportPortal - No server is configured.');
   }
-  if (!reportPortalConfig.endpoint) {
-    throw new Error('ReportPortal - endpoint is missing.');
+  if (!reportPortalConfig.server.url) {
+    throw new Error('ReportPortal - No server.url is configured.');
+  }
+  if (!reportPortalConfig.server.project) {
+    throw new Error('ReportPortal - No server.project is configured.');
+  }
+  if (!reportPortalConfig.server.authentication) {
+    throw new Error('ReportPortal - No server.authentication is configured.');
+  }
+  if (!reportPortalConfig.server.authentication.uuid) {
+    throw new Error('ReportPortal - No server.authentication.uuid is configured.');
   }
   if (!reportPortalConfig.launch) {
-    throw new Error('ReportPortal - launch is missing.');
+    throw new Error('ReportPortal - No launch is configured.');
   }
-  if (!reportPortalConfig.project) {
-    throw new Error('ReportPortal - project is missing.');
+  if (!reportPortalConfig.launch.name) {
+    throw new Error('ReportPortal - No launch.name is configured.');
   }
   return reportPortalConfig;
 }
 
+function convertReportPortalConfigToJavaScriptClientConfig (reportPortalConfig) {
+  return {
+    token: reportPortalConfig.server.authentication.uuid,
+    endpoint: reportPortalConfig.server.url.replace(/(.*)\/$/, '$1'),
+    launch: reportPortalConfig.launch.name,
+    project: reportPortalConfig.server.project,
+    debug: reportPortalConfig.launch.debugMode
+  };
+}
+
 function convertValueToLogableString (rawValue) {
   if (rawValue === undefined) {
-    return '{undefined}'
+    return '{undefined}';
   }
   if (rawValue === null) {
-    return '{null}'
+    return '{null}';
   }
-  return rawValue
+  return rawValue;
 }
 
 function convertToReportPortalStatus (backstopjsstatus) {
@@ -215,7 +234,56 @@ function convertToReportPortalStatus (backstopjsstatus) {
   throw new Error(`Unknown status: '${backstopjsstatus}'.`);
 }
 
-function writeReportPortalReport (config, reporter) {
+function readConfigFrom (pathToConfig) {
+  const rawdata = fs.readFileSync(pathToConfig);
+  return JSON.parse(rawdata);
+}
+
+function getReportPortalConfig (config) {
+  const reportPortalConfig = config.reportPortalConfig;
+  if (reportPortalConfig == null) {
+    const defaultFileName = './ReportPortal.config.json';
+    logger.log(`Trying to read default config from '${defaultFileName}'.`);
+    return readConfigFrom(defaultFileName);
+  } else if (typeof reportPortalConfig === 'string' || reportPortalConfig instanceof String) {
+    logger.log(`Trying to read ReportPortalConfig from given '${reportPortalConfig}'.`);
+    return readConfigFrom(reportPortalConfig);
+  } else {
+    logger.log('ReportPortalConfig is part of config.');
+    return reportPortalConfig;
+  }
+}
+
+async function checkConnectionToReportPortal (reportPortalClient) {
+  logger.log('Checking connection to report portal server.');
+
+  logger.log('Checking if report portal server is reachable at all. ' +
+    'Sadly the https://github.com/reportportal/client-javascript/blob/master/lib/rest.js#L20 ' +
+    'axios calls have no timeout, so we need to do this check manually.');
+  const axios = require('axios');
+  const urlToCheck = reportPortalClient.baseURL;
+  await axios({
+    method: 'GET',
+    url: urlToCheck,
+    headers: reportPortalClient.headers,
+    timeout: 10000
+  }).then(response => response.data)
+    .catch((error) => {
+      if (error.code === 'ECONNABORTED') {
+        logger.error(`Error while trying to reach report portal server (${urlToCheck}): ${error.message}`);
+        throw error;
+      }
+    });
+
+  await reportPortalClient.checkConnect().then((response) => {
+    logger.log(`Successfully connected to report portal server using an account: ${response.fullName}`);
+  }, (error) => {
+    logger.error(`Error connecting to report portal server ${error}`);
+    throw error;
+  });
+}
+
+async function writeReportPortalReport (config, reporter) {
   function toAbsolute (p) {
     return (path.isAbsolute(p)) ? p : path.join(config.projectPath, p);
   }
@@ -226,36 +294,21 @@ function writeReportPortalReport (config, reporter) {
     return Promise.resolve();
   }
 
-  const reportPortalConfig = validateReportPortalConfig(config.reportPortalOptions);
+  const reportPortalConfig = validateReportPortalConfig(getReportPortalConfig(config));
 
-  const reportPortalClient = new ReportPortalClient(reportPortalConfig);
+  if (!reportPortalConfig.enabled) {
+    logger.log('ReportPortal is not enabled in the ReportPortalConfig.');
+    return;
+  }
 
-  /*
-  return reportPortalClient.checkConnect().then((response) => {
-    console.log('You have successfully connected to the server.');
-    console.log(`You are using an account: ${response.fullName}`);
-  }, (error) => {
-    console.log('Error connection to server');
-    console.dir(error);
-  });
-  */
+  const reportPortalClient = new ReportPortalClient(convertReportPortalConfigToJavaScriptClientConfig(reportPortalConfig));
+
+  await checkConnectionToReportPortal(reportPortalClient);
+
   const launchObject = reportPortalClient.startLaunch({
-    // name: "Client test",
-    // startTime: rpClient.helpers.now(),
-    // description: "description of the launch",
-    /*
-    attributes: [
-        {
-            "key": "yourKey",
-            "value": "yourValue"
-        },
-        {
-            "value": "yourValue"
-        }
-    ],
-    */
-    // this param used only when you need client to send data into the existing launch
-    // id: 'id'
+    name: reportPortalConfig.launch.name,
+    description: reportPortalConfig.launch.description,
+    attributes: reportPortalConfig.launch.attributes
   });
 
   const suiteName = reporter.testSuite;
@@ -323,7 +376,7 @@ function writeReportPortalReport (config, reporter) {
     }
     if (testPair.diffImage) {
       const diffImageAbsolutePath = toAbsolute(testPair.diffImage);
-      logger.log(`Uploading diff image:${testPair.diffImage} gaxi ${diffImageAbsolutePath}.`);
+      logger.log(`Uploading diff image:${testPair.diffImage} from path: ${diffImageAbsolutePath}.`);
       const fsObject = fs.readFileSync(diffImageAbsolutePath);
       const contentBase64 = Buffer.from(fsObject).toString('base64');
       const fileExtension = path.extname(diffImageAbsolutePath).replace('.', '');
