@@ -388,7 +388,7 @@ async function captureScreenshot (page, browser, selector, selectorMap, config, 
 
           if (scenario.usePageScreenshotWithClip) {
             type = page;
-            const { layoutViewport: { pageX, pageY } } = await page._client.send('Page.getLayoutMetrics');
+            const { visualViewport: { pageX, pageY } } = await page._client.send('Page.getLayoutMetrics');
             const clip = Object.assign({}, box);
             clip.x += pageX;
             clip.y += pageY;
