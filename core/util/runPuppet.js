@@ -6,6 +6,7 @@ const chalk = require('chalk');
 const ensureDirectoryPath = require('./ensureDirectoryPath');
 const injectBackstopTools = require('../../capture/backstopTools.js');
 const engineTools = require('./engineTools');
+const sharp = require('sharp');
 
 const MIN_CHROME_VERSION = 62;
 const TEST_TIMEOUT = 60000;
@@ -349,6 +350,33 @@ async function delegateSelectors (
   }).then(_ => compareConfig);
 }
 
+function toSharpRegion (clip) {
+  const left = Math.round(clip.x);
+  const top = Math.round(clip.y);
+  const width = Math.round(clip.width + clip.x - left);
+  const height = Math.round(clip.height + clip.y - top);
+  return { left, top, width, height };
+}
+
+async function pageScreenshotWithClip (page, clip, filePath) {
+  const result = await page._client.send('Page.captureScreenshot', {
+    format: 'png'
+  });
+
+  const image = sharp(Buffer.from(result.data, 'base64'));
+  const metaData = await image.metadata();
+  const sharpRegion = toSharpRegion(clip);
+  if (sharpRegion.top + sharpRegion.height > metaData.height) {
+    throw new Error(`sharpRegion.top was '${sharpRegion.top}' and sharpRegion.height was '${sharpRegion.height}', but screenshot.height was only '${metaData.height}'.`);
+  }
+  if (sharpRegion.left + sharpRegion.width > metaData.width) {
+    throw new Error(`sharpRegion.left was '${sharpRegion.left}' and sharpRegion.width was '${sharpRegion.width}', but screenshot.width was only '${metaData.width}'.`);
+  }
+  await image
+    .extract(sharpRegion)
+    .toFile(filePath);
+}
+
 async function captureScreenshot (page, browser, selector, selectorMap, config, selectors, viewport, scenario) {
   let filePath;
   let fullPage = (selector === NOCLIP_SELECTOR || selector === DOCUMENT_SELECTOR);
@@ -387,12 +415,7 @@ async function captureScreenshot (page, browser, selector, selectorMap, config, 
           var params = config.puppeteerOffscreenCaptureFix ? { path: path, clip: box } : { path: path };
 
           if (scenario.usePageScreenshotWithClip) {
-            type = page;
-            const { visualViewport: { pageX, pageY } } = await page._client.send('Page.getLayoutMetrics');
             const clip = Object.assign({}, box);
-            clip.x += pageX;
-            clip.y += pageY;
-            params.clip = clip;
             // since v2.0.0 viewport is clipping again https://github.com/puppeteer/puppeteer/issues/5080
             // so we have to potentially increase the viewport to ensure the element we wanna screenshot is part of the viewport
             const viewport = page.viewport();
@@ -403,8 +426,10 @@ async function captureScreenshot (page, browser, selector, selectorMap, config, 
               };
               await page.setViewport(Object.assign({}, viewport, newViewport));
             }
+            await pageScreenshotWithClip(page, clip, path);
+          } else {
+            await type.screenshot(params);
           }
-          await type.screenshot(params);
         } else {
           console.log(chalk.yellow(`Element not visible for capturing: ${s}`));
           return fs.copy(config.env.backstop + HIDDEN_SELECTOR_PATH, path);
